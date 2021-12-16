@@ -1,17 +1,15 @@
-"""Demo code showing how to estimate human head pose.
 
-There are three major steps:
+
+"""There are three major steps:
 1. Detect human face in the video frame.
 2. Run facial landmark detection on the face image.
-3. Estimate the pose by solving a PnP problem.
+3. Estimate the pose by solving a PnP problem."""
 
-To find more details, please refer to:
-https://github.com/yinguobing/head-pose-estimation
-"""
 from argparse import ArgumentParser
 
 import cv2
 import os
+import socket
 import time
 import handTrackingModule as htm
 
@@ -28,6 +26,11 @@ parser.add_argument("--video", type=str, default=None,
 parser.add_argument("--cam", type=int, default=None,
                     help="The webcam index.")
 args = parser.parse_args()
+
+#Setting up the connection between C# script and these py script through socket.
+host, port = "127.0.0.1", 25001
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.connect((host, port))
 
 def getNumber(ar):
     s=""
@@ -82,9 +85,17 @@ if __name__ == '__main__':
     # 4. Measure the performance with a tick meter.
     tm = cv2.TickMeter()
 
+    #5. Getting the hand-tracking module.
     detector = htm.handDetector(detectionCon=0.75)
+
+
     # Now, let the frames flow.
+    pose = []
+    value = 0
+    count = 0
     while True:
+
+        #sleep 0.5 sec
 
         # Read a frame.
         frame_got, frame = cap.read()
@@ -121,26 +132,15 @@ if __name__ == '__main__':
             # Try pose estimation with 68 points.
             pose = pose_estimator.solve_pose_by_68_points(marks)
 
-            print("The pose track for frame is: \n")
-            print(pose[1][0])
-            print(pose[1][1])
-            print(pose[1][2])
             # All done. The best way to show the result would be drawing the
             # pose on the frame in realtime.
 
+            ## If Want to see the preview...
             # Do you want to see the pose annotation?
-            pose_estimator.draw_annotation_box(
-                frame, pose[0], pose[1], color=(0, 255, 0))
+            #pose_estimator.draw_annotation_box(
+                #frame, pose[0], pose[1], color=(0, 255, 0))
 
-            # Do you want to see the head axes?
-            # pose_estimator.draw_axes(frame, pose[0], pose[1])
-
-            # Do you want to see the marks?
-            # mark_detector.draw_marks(frame, marks, color=(0, 255, 0))
-
-            # Do you want to see the facebox?
-            # mark_detector.draw_box(frame, [facebox])
-
+        ## Starting with the hand-tracking now....
         img = detector.findHands(frame, draw=True )
         lmList=detector.findPosition(img,draw=False)
         #print(lmList)
@@ -152,7 +152,7 @@ if __name__ == '__main__':
                 fingers.append(1)
             else :
                 fingers.append(0)
-            #4 fingers
+            #4fingers
             for id in range(1,len(tipId)):
 
                 if(lmList[tipId[id]][2]<lmList[tipId[id]-2][2]):
@@ -162,18 +162,33 @@ if __name__ == '__main__':
                     fingers.append(0)
 
             value = getNumber(fingers)
-            print("\nThe value of the fingers is: \n")
-            print(value)
 
-            cv2.rectangle(img,(20,255),(170,425),(0,255,0),cv2.FILLED)
-            cv2.putText(img,str(value),(45,375),cv2.FONT_HERSHEY_PLAIN,
-                                             10,(255,0,0),20)
+            ## If want to see the preview
+            #cv2.rectangle(img,(20,255),(170,425),(0,255,0),cv2.FILLED)
+            #cv2.putText(img,str(value),(45,375),cv2.FONT_HERSHEY_PLAIN, 10,(255,0,0),20)
 
-        # Show preview.
         cTime=time.time()
-        fps=1/(cTime-pTime)
+        fps=int(1/(cTime-pTime))
         pTime=cTime
-        cv2.putText(img, f'FPS: {int(fps)}',(400,70),cv2.FONT_HERSHEY_COMPLEX,1,(255,255,0),3)
-        cv2.imshow("Preview", frame)
-        if cv2.waitKey(1) == 27:
-            break
+        ## If want to see the preview
+        #cv2.putText(img, f'FPS: {int(fps)}',(400,70),cv2.FONT_HERSHEY_COMPLEX,1,(255,255,0),3)
+        #cv2.imshow("Preview", frame)
+
+        count = count + 1
+
+        value_to_send = [pose[1][0], pose[1][1], pose[1][2], value, fps]
+        #print(value_to_send)
+
+        #Converting Vector3 to a string, example "0,0,0"
+        posString = ','.join(map(str, value_to_send))
+        print(posString)
+
+        #Converting string to Byte, and sending it to C#
+        sock.sendall(posString.encode("UTF-8"))
+
+        #receiveing data in Byte fron C#, and converting it to String
+        #print(receivedData)
+
+        ## If want to see the preview
+        #if cv2.waitKey(1) == 27:
+            #break
