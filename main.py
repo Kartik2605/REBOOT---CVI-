@@ -1,5 +1,3 @@
-
-
 """There are three major steps:
 1. Detect human face in the video frame.
 2. Run facial landmark detection on the face image.
@@ -53,6 +51,8 @@ def getNumber(ar):
         return(6)
     elif(s=="01011"):
         return(7)
+    else:
+        return(0)
 
 
 if __name__ == '__main__':
@@ -90,9 +90,13 @@ if __name__ == '__main__':
 
 
     # Now, let the frames flow.
-    pose = []
+    pose = [[0]*3]*2
+    Avg = [[0] * 3] * 4
     value = 0
-    count = 0
+    count = 1
+
+    NRML = lambda x: x if type(x) == float else x[0]
+
     while True:
 
         #sleep 0.5 sec
@@ -174,20 +178,27 @@ if __name__ == '__main__':
         #cv2.putText(img, f'FPS: {int(fps)}',(400,70),cv2.FONT_HERSHEY_COMPLEX,1,(255,255,0),3)
         #cv2.imshow("Preview", frame)
 
+
+        if (count == 4):
+            Avg[count-1][0] = (Avg[0][0] + Avg[1][0] + Avg[2][0] + pose[0][0]) / 4
+            Avg[count-1][1] = (Avg[0][1] + Avg[1][1] + Avg[2][1] + pose[0][1]) / 4
+            Avg[count-1][2] = (Avg[0][2] + Avg[1][2] + Avg[2][2] + pose[0][2]) / 4
+            count = 0
+
+            value_to_send = [NRML(Avg[3][0]), NRML(Avg[3][1]), NRML(Avg[3][2]), value, fps]
+
+            #Converting Vector3 to a string, example "0,0,0"
+            posString = ','.join(map(str, value_to_send))
+
+            #Converting string to Byte, and sending it to C#
+            sock.sendall(posString.encode("UTF-8"))
+            print(posString)
+        else:
+            Avg[count-1][0] = pose[0][0]
+            Avg[count-1][1] = pose[0][1]
+            Avg[count-1][2] = pose[0][2]
+
         count = count + 1
-
-        value_to_send = [pose[1][0], pose[1][1], pose[1][2], value, fps]
-        #print(value_to_send)
-
-        #Converting Vector3 to a string, example "0,0,0"
-        posString = ','.join(map(str, value_to_send))
-        print(posString)
-
-        #Converting string to Byte, and sending it to C#
-        sock.sendall(posString.encode("UTF-8"))
-
-        #receiveing data in Byte fron C#, and converting it to String
-        #print(receivedData)
 
         ## If want to see the preview
         #if cv2.waitKey(1) == 27:
